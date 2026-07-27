@@ -25,7 +25,7 @@ writer:
 
 trainer:
   log_step: 50
-  n_epochs: 50
+  n_epochs: 25
   epoch_len: 500
   device_tensors: ["data_object", "labels"]
   resume_from: null
