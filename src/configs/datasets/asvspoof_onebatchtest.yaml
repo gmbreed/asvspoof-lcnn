@@ -1,0 +1,20 @@
+# One-batch overfit sanity test: train and val point to the SAME tiny subset.
+# goal -> loss~0, acc~100%, EER~0.
+train:
+  _target_: src.datasets.ASVspoofDataset
+  name: train
+  protocol_path: ${dataset_root}/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt
+  audio_dir: ${dataset_root}/ASVspoof2019_LA_train/flac
+  max_len: 64000
+  limit: 35
+  shuffle_index: True   # we make the order random
+  instance_transforms: ${transforms.instance_transforms.train}
+val:
+  _target_: src.datasets.ASVspoofDataset
+  name: train        # same data as train on purpose
+  protocol_path: ${dataset_root}/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt
+  audio_dir: ${dataset_root}/ASVspoof2019_LA_train/flac
+  max_len: 64000
+  limit: 35
+  shuffle_index: True
+  instance_transforms: ${transforms.instance_transforms.inference}
