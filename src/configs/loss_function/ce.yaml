@@ -1,0 +1,2 @@
+_target_: src.loss.CELoss
+weight: [1, 9]

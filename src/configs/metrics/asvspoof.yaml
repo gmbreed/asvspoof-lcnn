@@ -1,0 +1,15 @@
+device: "auto"
+train:  # per-batch metrics during training
+  - _target_: src.metrics.ExampleMetric
+    metric:
+      _target_: torchmetrics.classification.MulticlassAccuracy
+      num_classes: 2
+    device: ${metrics.device}
+    name: "Accuracy"
+inference:  # per-batch metrics during evaluation
+  - _target_: src.metrics.ExampleMetric
+    metric:
+      _target_: torchmetrics.classification.MulticlassAccuracy
+      num_classes: 2
+    device: ${metrics.device}
+    name: "Accuracy"

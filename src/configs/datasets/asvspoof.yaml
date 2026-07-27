@@ -1,0 +1,14 @@
+train:
+  _target_: src.datasets.ASVspoofDataset
+  name: train
+  protocol_path: ${dataset_root}/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.train.trn.txt
+  audio_dir: ${dataset_root}/ASVspoof2019_LA_train/flac
+  max_len: 64000
+  instance_transforms: ${transforms.instance_transforms.train}
+val:
+  _target_: src.datasets.ASVspoofDataset
+  name: dev
+  protocol_path: ${dataset_root}/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.dev.trl.txt
+  audio_dir: ${dataset_root}/ASVspoof2019_LA_dev/flac
+  max_len: 64000
+  instance_transforms: ${transforms.instance_transforms.inference}
