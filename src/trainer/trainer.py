@@ -1,3 +1,4 @@
+from src.metrics.eer_metric import EERCalculator
 from src.metrics.tracker import MetricTracker
 from src.trainer.base_trainer import BaseTrainer
 
@@ -53,7 +54,21 @@ class Trainer(BaseTrainer):
 
         for met in metric_funcs:
             metrics.update(met.name, met(**batch))
+
+        if not self.is_train:
+            self.eer.update(**batch)
         return batch
+
+    def _evaluation_epoch(self, epoch, part, dataloader):
+        """
+        Evaluate for an epoch and add the global EER on top of the base logs.
+        """
+        self.eer = EERCalculator()
+        logs = super()._evaluation_epoch(epoch, part, dataloader)
+        eer = self.eer.compute()
+        self.writer.add_scalar("EER", eer)
+        logs["EER"] = eer
+        return logs
 
     def _log_batch(self, batch_idx, batch, mode="train"):
         """
