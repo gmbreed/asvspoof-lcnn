@@ -11,8 +11,9 @@ defaults:
 dataset_root: /kaggle/input/asvspoof2019/LA
 
 optimizer:
-  _target_: torch.optim.Adam
+  _target_: torch.optim.AdamW
   lr: 3e-4
+  weight_decay: 1e-4
 
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
