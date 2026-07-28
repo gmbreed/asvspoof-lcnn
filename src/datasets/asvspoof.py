@@ -1,4 +1,5 @@
 from pathlib import Path
+import torch
 import torchaudio
 from src.datasets.base_dataset import BaseDataset
 from src.utils.io_utils import ROOT_PATH, read_json, write_json
@@ -9,6 +10,7 @@ class ASVspoofDataset(BaseDataset):
         self, protocol_path, audio_dir, name="train", max_len=64000, *args, **kwargs
     ):
         self.max_len = max_len
+        self.name = name  # gate train-only random crop
 
         index_path = ROOT_PATH / "data" / "asvspoof" / f"{name}_index.json"
         if index_path.exists():
@@ -47,7 +49,14 @@ class ASVspoofDataset(BaseDataset):
         wav = wav.squeeze(0)
 
         if wav.shape[0] > self.max_len:
-            wav = wav[: self.max_len]
+            if self.name == "train":
+                # random crop: a random max_len window (temporal augmentation)
+                max_start = wav.shape[0] - self.max_len
+                start = torch.randint(0, max_start + 1, (1,)).item()
+                wav = wav[start : start + self.max_len]
+            else:
+                # dev/eval: deterministic first window (one stable score per utt)
+                wav = wav[: self.max_len]
         elif wav.shape[0] < self.max_len:
             num_repeats = self.max_len // wav.shape[0] + 1
             wav = wav.repeat(num_repeats)[: self.max_len]
