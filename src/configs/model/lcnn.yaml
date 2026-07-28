@@ -2,3 +2,5 @@ _target_: src.model.LCNN
 n_class: 2
 input_dim: [60, 401]
 dropout: 0.7
+angular: false  # true -> AngleLinear head for A-Softmax; false -> plain head for CE
+angular_m: 4  # multiplicative angular margin (SphereFace), used only if angular=true

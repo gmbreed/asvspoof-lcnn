@@ -1,0 +1,4 @@
+_target_: src.loss.ASoftmaxLoss
+lambda_min: 5.0
+lambda_max: 1500.0
+weight: [1, 9]
