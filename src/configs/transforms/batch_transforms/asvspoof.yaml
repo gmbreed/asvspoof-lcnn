@@ -1,5 +1,5 @@
 train:
-  data_object:  # apply the LFCC front-end to the main tensor
+  data_object:  # LFCC front-end + SpecAugment (train only)
     _target_: torch.nn.Sequential  # a chain of transforms
     _args_:
       - _target_: src.transforms.LFCC
@@ -8,6 +8,11 @@ train:
         win_length: 400
         hop_length: 160
         with_deltas: true
+      # SpecAugment
+      - _target_: torchaudio.transforms.FrequencyMasking
+        freq_mask_param: 15
+      - _target_: torchaudio.transforms.TimeMasking
+        time_mask_param: 35
       # fallback front-end (previous baseline):
       # - _target_: src.transforms.LogSpectrogram
       #   n_fft: 512
