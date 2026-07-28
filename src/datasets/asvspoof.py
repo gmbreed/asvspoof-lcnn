@@ -18,6 +18,11 @@ class ASVspoofDataset(BaseDataset):
 
         super().__init__(index, *args, **kwargs)
 
+    def __getitem__(self, ind):
+        instance_data = super().__getitem__(ind)
+        instance_data["utt_id"] = self._index[ind]["utt_id"]
+        return instance_data
+
     def _create_index(self, protocol_path, audio_dir, index_path):
         index = []
         audio_dir = Path(audio_dir)

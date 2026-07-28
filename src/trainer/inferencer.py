@@ -1,6 +1,10 @@
+import csv
+
+import numpy as np
 import torch
 from tqdm.auto import tqdm
 
+from src.metrics.calculate_eer import compute_eer
 from src.metrics.tracker import MetricTracker
 from src.trainer.base_trainer import BaseTrainer
 
@@ -96,11 +100,9 @@ class Inferencer(BaseTrainer):
 
     def process_batch(self, batch_idx, batch, metrics, part):
         """
-        Run batch through the model, compute metrics, and
-        save predictions to disk.
-
-        Save directory is defined by save_path in the inference
-        config and current partition.
+        Run batch through the model, compute metrics, and buffer one
+        (utt_id, score, label) triple per utterance. The submission csv
+        is written once per partition in _inference_part.
 
         Args:
             batch_idx (int): the index of the current batch.
@@ -117,7 +119,7 @@ class Inferencer(BaseTrainer):
                 and model outputs.
         """
         batch = self.move_batch_to_device(batch)
-        batch = self.transform_batch(batch)  # transform batch on device -- faster
+        batch = self.transform_batch(batch)  # transform batch on device - faster
 
         outputs = self.model(**batch)
         batch.update(outputs)
@@ -126,47 +128,32 @@ class Inferencer(BaseTrainer):
             for met in self.metrics["inference"]:
                 metrics.update(met.name, met(**batch))
 
-        # Some saving logic. This is an example
-        # Use if you need to save predictions on disk
+        # Higher score -> more likely a real voice, exactly what the grader wants
+        scores = torch.softmax(batch["logits"], dim=-1)[:, 1]
 
-        batch_size = batch["logits"].shape[0]
-        current_id = batch_idx * batch_size
-
-        for i in range(batch_size):
-            # clone because of
-            # https://github.com/pytorch/pytorch/issues/1995
-            logits = batch["logits"][i].clone()
-            label = batch["labels"][i].clone()
-            pred_label = logits.argmax(dim=-1)
-
-            output_id = current_id + i
-
-            output = {
-                "pred_label": pred_label,
-                "label": label,
-            }
-
-            if self.save_path is not None:
-                # you can use safetensors or other lib here
-                torch.save(output, self.save_path / part / f"output_{output_id}.pth")
+        # buffer one (name, score, label) triple per utterance
+        for utt_id, score, label in zip(batch["utt_id"], scores, batch["labels"]):
+            self.predictions.append((utt_id, score.item(), label.item()))
 
         return batch
 
     def _inference_part(self, part, dataloader):
         """
-        Run inference on a given partition and save predictions
+        Run inference on a given partition: write the submission csv and
+        compute EER exactly the way grading.py does.
 
         Args:
             part (str): name of the partition.
             dataloader (DataLoader): dataloader for the given partition.
         Returns:
-            logs (dict): metrics, calculated on the partition.
+            logs (dict): metrics (incl. EER) calculated on the partition.
         """
 
         self.is_train = False
         self.model.eval()
 
         self.evaluation_metrics.reset()
+        self.predictions = []  # fresh buffer for this partition
 
         # create Save dir
         if self.save_path is not None:
@@ -185,4 +172,18 @@ class Inferencer(BaseTrainer):
                     metrics=self.evaluation_metrics,
                 )
 
-        return self.evaluation_metrics.result()
+        # submission csv: one "<utt_id>,<score>" line per utterance
+        csv_path = self.save_path / part / "submission.csv"
+        with open(csv_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            for utt_id, score, _ in self.predictions:
+                writer.writerow([utt_id, score])
+        print(f"Saved {len(self.predictions)} predictions to {csv_path}")
+
+        scores = np.array([s for _, s, _ in self.predictions])
+        labels = np.array([lbl for _, _, lbl in self.predictions])
+        eer, _ = compute_eer(scores[labels == 1], scores[labels == 0])
+
+        logs = self.evaluation_metrics.result()
+        logs["EER"] = eer * 100
+        return logs
