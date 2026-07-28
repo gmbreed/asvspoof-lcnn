@@ -1,16 +1,30 @@
 train:
-  data_object:  # apply the STFT front-end to the main tensor
+  data_object:  # apply the LFCC front-end to the main tensor
     _target_: torch.nn.Sequential  # a chain of transforms
     _args_:
-      - _target_: src.transforms.LogSpectrogram
+      - _target_: src.transforms.LFCC
+        n_lfcc: 20
         n_fft: 512
-        hop_length: 256
-        win_length: 512
+        win_length: 400
+        hop_length: 160
+        with_deltas: true
+      # fallback front-end (previous baseline):
+      # - _target_: src.transforms.LogSpectrogram
+      #   n_fft: 512
+      #   hop_length: 256
+      #   win_length: 512
 inference:
   data_object:
     _target_: torch.nn.Sequential
     _args_:
-      - _target_: src.transforms.LogSpectrogram
+      - _target_: src.transforms.LFCC
+        n_lfcc: 20
         n_fft: 512
-        hop_length: 256
-        win_length: 512
+        win_length: 400
+        hop_length: 160
+        with_deltas: true
+      # fallback front-end (previous baseline):
+      # - _target_: src.transforms.LogSpectrogram
+      #   n_fft: 512
+      #   hop_length: 256
+      #   win_length: 512
