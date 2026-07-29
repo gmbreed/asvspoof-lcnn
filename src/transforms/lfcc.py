@@ -15,15 +15,17 @@ class LFCC(nn.Module):
         self,
         sample_rate=16000,
         n_lfcc=20,
+        n_filter=20,
         n_fft=512,
-        win_length=400,
-        hop_length=160,
+        win_length=320,  # 20 ms @ 16 kHz
+        hop_length=160,  # 10 ms @ 16 kHz
         with_deltas=True,
     ):
         super().__init__()
         self.lfcc = torchaudio.transforms.LFCC(
             sample_rate=sample_rate,
             n_lfcc=n_lfcc,
+            n_filter=n_filter,  # 20 linear triangular filters (both papers)
             speckwargs={
                 "n_fft": n_fft,
                 "win_length": win_length,

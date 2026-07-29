@@ -4,8 +4,9 @@ train:
     _args_:
       - _target_: src.transforms.LFCC
         n_lfcc: 20
+        n_filter: 20  # 20 linear filters (torchaudio default is 128)
         n_fft: 512
-        win_length: 400
+        win_length: 320  # 20ms @16kHz (STC/Wang baseline; was 25ms)
         hop_length: 160
         with_deltas: true
       # fallback front-end (previous baseline):
@@ -19,8 +20,9 @@ inference:
     _args_:
       - _target_: src.transforms.LFCC
         n_lfcc: 20
+        n_filter: 20  # 20 linear filters (torchaudio default is 128)
         n_fft: 512
-        win_length: 400
+        win_length: 320  # 20ms @16kHz (STC/Wang baseline; was 25ms)
         hop_length: 160
         with_deltas: true
       # fallback front-end (previous baseline):

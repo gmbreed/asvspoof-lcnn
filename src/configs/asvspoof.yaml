@@ -32,7 +32,7 @@ trainer:
   device: auto
   override: False
   monitor: "min val_EER"
-  save_period: 5
+  save_period: 2  # dense checkpoints -> fine-grained eval sweep (dev EER saturates)
   early_stop: ${trainer.n_epochs}
   save_dir: "saved"
   seed: 1

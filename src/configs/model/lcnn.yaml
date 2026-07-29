@@ -1,6 +1,6 @@
 _target_: src.model.LCNN
 n_class: 2
 input_dim: [60, 751]
-dropout: 0.7
+dropout: 0.75  # STC uses 0.75 to reduce overfitting
 angular: false  # true -> AngleLinear head for A-Softmax; false -> plain head for CE
 angular_m: 4  # multiplicative angular margin (SphereFace), used only if angular=true
