@@ -58,6 +58,9 @@ class ASVspoofDataset(BaseDataset):
                 # dev/eval: deterministic first window (one stable score per utt)
                 wav = wav[: self.max_len]
         elif wav.shape[0] < self.max_len:
-            num_repeats = self.max_len // wav.shape[0] + 1
-            wav = wav.repeat(num_repeats)[: self.max_len]
+            # zero-pad short trials (matches STC/Wang trim-pad recipe).
+            # repeat-padding would inject seam discontinuities and false
+            # periodicity -- fake artifacts an anti-spoofing model can latch on.
+            pad = self.max_len - wav.shape[0]
+            wav = torch.nn.functional.pad(wav, (0, pad))
         return wav

@@ -4,5 +4,5 @@ eval:
   name: eval
   protocol_path: ${dataset_root}/ASVspoof2019_LA_cm_protocols/ASVspoof2019.LA.cm.eval.trl.txt
   audio_dir: ${dataset_root}/ASVspoof2019_LA_eval/flac
-  max_len: 64000
+  max_len: 120000  # ~7.5s
   instance_transforms: ${transforms.instance_transforms.inference}
