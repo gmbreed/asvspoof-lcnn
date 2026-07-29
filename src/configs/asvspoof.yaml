@@ -13,12 +13,11 @@ dataset_root: /kaggle/input/asvspoof2019/LA
 optimizer:
   _target_: torch.optim.AdamW
   lr: 3e-4
-  weight_decay: 1e-4
-
+  weight_decay: 0  # AdamW(wd=0) == Adam
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
-  gamma: 0.9
-  step_size: ${trainer.epoch_len}
+  gamma: 0.5  # halve lr
+  step_size: 5000  # every 10 epochs (10 x epoch_len=500)
 
 writer:
   project_name: "asvspoof_lcnn"
