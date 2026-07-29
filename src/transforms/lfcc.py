@@ -19,7 +19,6 @@ class LFCC(nn.Module):
         win_length=400,
         hop_length=160,
         with_deltas=True,
-        cmvn=True,
     ):
         super().__init__()
         self.lfcc = torchaudio.transforms.LFCC(
@@ -33,7 +32,6 @@ class LFCC(nn.Module):
         )
         self.with_deltas = with_deltas
         self.delta = torchaudio.transforms.ComputeDeltas()
-        self.cmvn = cmvn
 
     def forward(self, x):
         feat = self.lfcc(x)  # (B, n_lfcc, time)
@@ -41,10 +39,5 @@ class LFCC(nn.Module):
             d1 = self.delta(feat)  # (Δ)
             d2 = self.delta(d1)  # (ΔΔ)
             feat = torch.cat([feat, d1, d2], dim=1)  # (B, 3*n_lfcc, time)
-        if self.cmvn:
-            # CMVN
-            mean = feat.mean(dim=2, keepdim=True)
-            std = feat.std(dim=2, keepdim=True)
-            feat = (feat - mean) / (std + 1e-5)
         feat = feat.unsqueeze(1)  # (B, 1, F, time)
         return feat
