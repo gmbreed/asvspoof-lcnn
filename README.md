@@ -1,149 +1,281 @@
-# PyTorch Template for DL projects
+# Voice Anti-spoofing: LCNN on ASVspoof 2019 LA
 
 <p align="center">
   <a href="#about">About</a> •
-  <a href="#tutorials">Tutorials</a> •
-  <a href="#examples">Examples</a> •
+  <a href="#results">Results</a> •
   <a href="#installation">Installation</a> •
+  <a href="#data">Data</a> •
   <a href="#how-to-use">How To Use</a> •
-  <a href="#useful-links">Useful Links</a> •
+  <a href="#method">Method</a> •
+  <a href="#repository-structure">Repository Structure</a> •
   <a href="#credits">Credits</a> •
   <a href="#license">License</a>
 </p>
 
 <p align="center">
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/LICENSE">
-   <img src=https://img.shields.io/badge/license-MIT-blue.svg>
-</a>
-<a href="https://github.com/Blinorot/pytorch_project_template/blob/main/CITATION.cff">
-   <img src="https://img.shields.io/badge/cite-this%20repo-purple">
+<a href="/LICENSE">
+   <img src="https://img.shields.io/badge/license-MIT-blue.svg">
 </a>
 </p>
 
 ## About
 
-This repository contains a template for [PyTorch](https://pytorch.org/)-based Deep Learning projects.
+This repository contains a **countermeasure (CM) system for voice anti-spoofing**: given a
+recording, the model decides whether it is genuine human speech (*bonafide*) or speech produced by
+a text-to-speech or voice conversion system (*spoof*).
 
-The template utilizes different python-dev techniques to improve code readability. Configuration methods enhance reproducibility and experiments control.
+The model is trained and evaluated on the Logical Access (LA) part of the
+[ASVspoof 2019 dataset](https://datashare.ed.ac.uk/handle/10283/3336)
+([Kaggle Link](https://www.kaggle.com/datasets/awsaf49/asvpoof-2019-dataset)). The main difficulty
+of this dataset lies in how it is split: the training and development parts are built from one set
+of spoofing algorithms, while the evaluation part uses a different and larger set. This is
+deliberate — the goal is to test whether a model still works on attacks it has never encountered
+during training. As a consequence, a very low EER on the development part says little about the
+evaluation part, and the gap between the two is typically large.
 
-The repository is released as a part of the [HSE DLA course](https://github.com/markovka17/dla), however, can easily be adopted for any DL-task.
+The model is a **Light CNN (LCNN)** with Max-Feature-Map activations. Its architecture follows
+[Wu et al. (2015)](https://arxiv.org/abs/1511.02683), with the exact layer configuration taken from
+the Speech Technology Center system of
+[Lavrentyeva et al. (2019)](https://arxiv.org/abs/1904.05576). The data preparation and training
+recipe come from [Wang & Yamagishi (2021)](https://arxiv.org/abs/2103.11326).
 
-This template is the official recommended template for the [EPFL CS-433 ML Course](https://www.epfl.ch/labs/mlo/machine-learning-cs-433/).
+The project is built on top of the
+[PyTorch Project Template](https://github.com/Blinorot/pytorch_project_template). The model was
+trained with this code, and all logs come directly from it.
 
-**New:** we added a [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main) variant of the template with [HuggingFace](https://huggingface.co/) Integration for multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
+## Results
 
-> 📖 **If you use this template in your work, please cite this repository or include a reference. Attribution supports the project and encourages continued development.**
+The model is evaluated on the evaluation part of ASVspoof 2019 LA with the `compute_eer` function
+supplied with the assignment.
 
-## Tutorials
+| System                                   | Front-end | Training criterion                                             | EER, %      |
+| ---------------------------------------- | --------- | -------------------------------------------------------------- | ----------- |
+| **This work** (`checkpoint-epoch44`)     | LFCC      | cross-entropy, class-weighted                                  | **6.07**    |
+| Lavrentyeva et al. (2019), `LFCC-LCNN`   | LFCC      | A-Softmax                                                      | 5.06        |
+| Wang & Yamagishi (2021), `LCNN-trim-pad` | LFCC      | sigmoid (= cross-entropy), 6 seeds                             | 2.54 – 3.47 |
 
-This template utilizes experiment tracking techniques, such as [WandB](https://docs.wandb.ai/) and [Comet ML](https://www.comet.com/docs/v2/), and [Hydra](https://hydra.cc/docs/intro/) for the configuration. It also automatically reformats code and conducts several checks via [pre-commit](https://pre-commit.com/). If you are not familiar with these tools, we advise you to look at the tutorials below:
+The last row is the closest published comparison: `LCNN-trim-pad` is the same architecture with the
+same front-end and the same fixed input of 750 frames, and the recipe used here follows it down to
+the optimiser and the learning-rate schedule. All four criteria in that paper are trained with
+cross-entropy and differ only in the output activation, and for two classes the softmax reduces to
+a sigmoid, so their `sigmoid` column is the configuration used here.
 
-- [Python Dev Tips](https://github.com/ebezzam/python-dev-tips): information about [Git](https://git-scm.com/doc), [pre-commit](https://pre-commit.com/), [Hydra](https://hydra.cc/docs/intro/), and other stuff for better Python code development. The YouTube recording of the workshop is available [here](https://youtu.be/okxaTuBdDuY).
+The result reported here is behind it, and the training objective is not what separates the two.
+Four differences remain: the first cepstral coefficient is not replaced with log spectral energy,
+the batch size is 32 rather than 64, the classes are weighted to offset the imbalance between
+bonafide and spoof trials, and an epoch here is 500 steps rather than a full pass over the training
+data, which makes the learning rate decay about 1.6 times faster per sample seen. Only one seed was
+trained, while the sensitivity of these models to initialisation is the main finding of that paper:
+over their whole grid the same architecture ranges from 2.31 % to 7.06 %. Their best result, 1.92 %,
+uses LSTM aggregation and goes beyond the plain LCNN.
 
-- [Seminar on R&D Coding 2025](https://youtu.be/PE1zaW5it_A): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with discussion on logging, project-based coding, configuration, and reproducibility. The materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/tree/summer25/day05).
+At the end of training the model reaches 0.59 % EER on the development partition, against the
+6.07 % above. That distance is the difference between seen and unseen attacks described earlier,
+not a sign of a broken pipeline: the paper of Lavrentyeva et al. reports the same pattern, with
+0.157 % on development and 5.06 % on evaluation.
 
-- [Seminar on R&D Coding 2024](https://youtu.be/sEA-Js5ZHxU): Seminar from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/) with template discussion and reasoning. It also explains how to work with [WandB](https://docs.wandb.ai/). The seminar materials can be found [here](https://github.com/LauzHack/deep-learning-bootcamp/blob/main/day03/Seminar_WandB_and_Coding.ipynb).
+Training took about 1 hour 45 minutes on a single Kaggle GPU — 50 epochs of 500 steps. Scoring
+every saved checkpoint on the evaluation partition afterwards brought the whole session to roughly
+2.9 hours.
 
-- [HSE DLA Course Introduction Week](https://github.com/markovka17/dla/tree/2024/week01): combines the two seminars above into one with some updates, including an extra example for [Comet ML](https://www.comet.com/docs/v2/).
-
-- [PyTorch Basics](https://github.com/markovka17/dla/tree/2024/week01/intro_to_pytorch): several notebooks with [PyTorch](https://pytorch.org/docs/stable/index.html) basics and corresponding seminar recordings from the [LauzHack Deep Learning Bootcamp](https://github.com/LauzHack/deep-learning-bootcamp/).
-
-To start working with a template, just click on the `use this template` button.
-
-<a href="https://github.com/Blinorot/pytorch_project_template/generate">
-  <img src="https://img.shields.io/badge/use%20this-template-green?logo=github">
-</a>
-
-You can choose any of the branches as a starting point. [Set your choice as the default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in the repository settings. You can also [delete unnecessary branches](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-and-deleting-branches-within-your-repository).
-
-## Examples
-
-> [!IMPORTANT]
-> The main branch leaves some of the code parts empty or fills them with dummy examples, showing just the base structure. The final users can add code required for their own tasks.
-
-You can find examples of this template completed for different tasks in other branches:
-
-- [HF Main](https://github.com/Blinorot/pytorch_project_template/tree/hf_main): the variant of the `main` branch with [HuggingFace](https://huggingface.co/) Integration. Supports multi-GPU and multi-node training, automatic mixed precision, gradient accumulation, and seamless HuggingFace Ecosystem Compatibility.
-
-- [Image classification](https://github.com/Blinorot/pytorch_project_template/tree/example/image-classification): simple classification problem on [MNIST](https://yann.lecun.com/exdb/mnist/) and [CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html) datasets.
-
-- [ASR](https://github.com/Blinorot/pytorch_project_template/tree/example/asr): template for the automatic speech recognition (ASR) task. Some of the parts (for example, `collate_fn` and beam search for `text_encoder`) are missing for studying purposes of [HSE DLA course](https://github.com/markovka17/dla).
+Training and evaluation curves are published as a WandB report:
+**[WandB Report](https://api.wandb.ai/links/gmbreed-hse-university/92ul2ckj)**
 
 ## Installation
 
-Installation may depend on your task. The general steps are the following:
+The pinned dependencies are published for Python 3.9 through 3.12; the commands below use 3.10.
+Create and activate an environment, either with `conda`:
 
-0. (Optional) Create and activate new environment using [`conda`](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) or `venv` ([`+pyenv`](https://github.com/pyenv/pyenv)).
+```bash
+conda create -n antispoof python=3.10 && conda activate antispoof
+```
 
-   a. `conda` version:
+or with `venv`:
 
-   ```bash
-   # create env
-   conda create -n project_env python=PYTHON_VERSION
+```bash
+python3 -m venv antispoof_env && source antispoof_env/bin/activate
+```
 
-   # activate env
-   conda activate project_env
-   ```
+Then install the dependencies:
 
-   b. `venv` (`+pyenv`) version:
+```bash
+pip install -r requirements.txt
+```
 
-   ```bash
-   # create env
-   ~/.pyenv/versions/PYTHON_VERSION/bin/python3 -m venv project_env
+Two of them deserve a note. `torchaudio` carries both the FLAC reader and the LFCC front-end, so
+nothing runs without it. `soundfile` is listed explicitly so that FLAC decoding works on a bare
+installation, without depending on a system-wide FFmpeg or SoX.
 
-   # alternatively, using default python version
-   python3 -m venv project_env
+The pre-commit hooks are optional and only matter if you intend to commit to the repository:
 
-   # activate env
-   source project_env/bin/activate
-   ```
+```bash
+pre-commit install
+```
 
-1. Install all required packages
+## Data
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+The project uses the Logical Access partition of ASVspoof 2019, available either from
+[Kaggle](https://www.kaggle.com/datasets/awsaf49/asvpoof-2019-dataset) or from the
+[Edinburgh DataShare mirror](https://datashare.ed.ac.uk/handle/10283/3336). There is no
+preprocessing step: the code reads the original `.flac` files and the original protocol files as
+they come.
 
-2. Install `pre-commit`:
-   ```bash
-   pre-commit install
-   ```
+The directory passed as `dataset_root` is expected to keep the layout of the archive:
+
+```
+LA
+├── ASVspoof2019_LA_cm_protocols
+│   ├── ASVspoof2019.LA.cm.train.trn.txt
+│   ├── ASVspoof2019.LA.cm.dev.trl.txt
+│   └── ASVspoof2019.LA.cm.eval.trl.txt
+├── ASVspoof2019_LA_train/flac
+├── ASVspoof2019_LA_dev/flac
+└── ASVspoof2019_LA_eval/flac
+```
+
+In the configs `dataset_root` points at a Kaggle path, since that is where the model was trained,
+so on any other machine it has to be given on the command line — the examples below all do that.
 
 ## How To Use
 
-To train a model, run the following command:
+All commands are run from the repository root.
+
+### Training
 
 ```bash
-python3 train.py -cn=CONFIG_NAME HYDRA_CONFIG_ARGUMENTS
+python3 train.py -cn=asvspoof dataset_root=/path/to/LA
 ```
 
-Where `CONFIG_NAME` is a config from `src/configs` and `HYDRA_CONFIG_ARGUMENTS` are optional arguments.
-
-To run inference (evaluate the model or save predictions):
+Checkpoints are written to `saved/lcnn_baseline/`, one every two epochs, together with
+`model_best.pth` for the lowest EER on the development partition. The full config of the run is
+saved next to them as `config.yaml`, so any result can be traced back to the settings that produced
+it. Anything in the config can be overridden from the command line:
 
 ```bash
-python3 inference.py HYDRA_CONFIG_ARGUMENTS
+python3 train.py -cn=asvspoof dataset_root=/path/to/LA writer.run_name=my_run trainer.seed=7
 ```
 
-## Useful Links:
+A second config trains the same model with A-Softmax in place of weighted cross-entropy:
 
-You may find the following links useful:
+```bash
+python3 train.py -cn=asvspoof_asoftmax dataset_root=/path/to/LA
+```
 
-- [Report branch](https://github.com/Blinorot/pytorch_project_template/tree/report): Guidelines for writing a scientific report/paper (with an emphasis on DL projects).
+### Inference
 
-- [CLAIRE Template](https://github.com/CLAIRE-Labo/python-ml-research-template): additional template by [EPFL CLAIRE Laboratory](https://www.epfl.ch/labs/claire/) that can be combined with ours to enhance experiments reproducibility via [Docker](https://www.docker.com/).
+```bash
+python3 inference.py -cn=inference_asvspoof dataset_root=/path/to/LA inferencer.from_pretrained=saved/lcnn_baseline/checkpoint-epoch44.pth
+```
 
-- [Mamba](https://github.com/mamba-org/mamba) and [Poetry](https://python-poetry.org/): alternatives to [Conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html) and [pip](https://pip.pypa.io/en/stable/installation/) package managers given above.
+This prints the EER on the evaluation partition and writes the predictions to
+`data/saved/asvspoof_eval/eval/submission.csv`: one `utterance_id,score` line per utterance, where
+the score is the probability the model assigns to the *bonafide* class. That file is the submission
+format the task asks for.
 
-- [Awesome README](https://github.com/matiassingers/awesome-readme): a list of awesome README files for inspiration. Check the basics [here](https://github.com/PurpleBooth/a-good-readme-template).
+### Reproducing the reported result
+
+The 6.07 % in the table above comes from `checkpoint-epoch44` of a run of `src/configs/asvspoof.yaml`
+with its default seed of 1. Running the training command and then the inference command above
+reproduces it, up to the nondeterminism of GPU training.
+
+## Method
+
+### Front-end
+
+Every recording is turned into 20 linear-frequency cepstral coefficients, computed from a bank of
+20 linear triangular filters over a 512-point FFT with a 20 ms window and a 10 ms hop, and joined
+with their first and second differences, which gives 60 numbers per frame
+(`src/transforms/lfcc.py`). This is the recipe of Wang & Yamagishi, with one deviation: they
+replace the first coefficient with the log spectral energy, which is not done here.
+
+The choice of LFCC over a spectrogram is worth a note, because the two papers disagree.
+Lavrentyeva et al. report a slightly better result for their FFT system than for their LFCC one,
+4.53 % against 5.06 % EER, whereas Wang & Yamagishi find LFCC the stronger front-end in eleven of
+the twelve combinations of architecture and criterion they report — for `LCNN-trim-pad` with
+P2SGrad, 2.31 % to 3.11 % against 2.94 % to 4.74 % for the spectrogram. This work follows the
+second paper, whose recipe it adopts as a whole.
+
+### Fixed-length input
+
+The network takes a fixed-size input, so every recording is cropped or zero-padded to 120 000
+samples: 7.5 seconds at 16 kHz, or 750 frames at a 10 ms hop. Wang & Yamagishi report that 750
+frames already cover 98 % of the database, so almost nothing is discarded. During training the crop
+window is drawn at random, which acts as a mild augmentation; at evaluation the first window is
+always taken, so a recording always receives the same score. Short recordings are padded with zeros
+rather than by repeating frames, which is what the reference recipe does as well: repetition would
+introduce seams and an artificial periodicity, exactly the kind of artefact an anti-spoofing model
+is happy to latch onto.
+
+### Architecture
+
+The model is a Light CNN in the layer configuration of Table 1 of Lavrentyeva et al.: nine
+convolutions, each followed by a Max-Feature-Map activation, with four max-pooling layers and batch
+normalisation in between, then a fully connected layer with another Max-Feature-Map, dropout, a
+final batch normalisation and the classifier (`src/model/lcnn.py`). The dropout sits before that
+last batch normalisation and is set to 0.75, the value the same paper reports for the same purpose.
+
+Max-Feature-Map is what makes the network light. It splits the channels in half and keeps the
+element-wise maximum of the two halves, so each activation halves the channel count instead of
+merely zeroing part of it the way a ReLU does. The model ends up with 865 058 parameters, which
+agrees with the "more than 860k" Wang & Yamagishi report for the same architecture.
+
+### Training
+
+The objective is cross-entropy with class weights of 1 and 9, offsetting the roughly one-to-nine
+ratio of bonafide to spoofed recordings in the training partition. A-Softmax is implemented as well
+(`src/loss/a_softmax.py`) and can be selected through the `asvspoof_asoftmax` config.
+
+Optimisation follows the reference recipe: AdamW with a learning rate of 3e-4 and no weight decay,
+which makes it plain Adam, the optimiser Wang & Yamagishi use. The learning rate is halved every
+5 000 steps, so by the end of training it is about sixteen times smaller than at the start.
+Training runs for 50 epochs of 500 steps, 25 000 updates in total, with a batch size of 32.
+Features are not normalised in any way, again following the reference recipe. The EER is not a
+per-batch quantity: the scores of every recording in a partition are collected first, and the
+threshold is swept over all of them together (`src/metrics/eer_metric.py`).
+
+## Repository Structure
+
+The layout is the one the template comes with; the task-specific code lives in the directories it
+leaves open.
+
+```
+src
+├── configs      Hydra configs; asvspoof.yaml is the training config used here
+├── datasets     protocol parsing, the trim-pad scheme, collation
+├── transforms   the LFCC front-end, plus a log-spectrogram kept as a fallback
+├── model        the Light CNN and the Max-Feature-Map activation
+├── loss         weighted cross-entropy, and A-Softmax as an alternative
+├── metrics      EER, and the accumulator that computes it over a partition
+├── trainer      the training loop and the inferencer
+├── logger       WandB and Comet ML writers
+└── utils        initialisation and IO helpers
+train.py         entry point for training
+inference.py     entry point for inference and for writing the submission
+```
 
 ## Credits
 
-This repository is based on a heavily modified fork of [pytorch-template](https://github.com/victoresque/pytorch-template) and [asr_project_template](https://github.com/WrathOfGrapes/asr_project_template) repositories.
+This repository is a variant of the
+[PyTorch Project Template](https://github.com/Blinorot/pytorch_project_template) by
+[Blinorot](https://github.com/Blinorot), which is itself based on
+[pytorch-template](https://github.com/victoresque/pytorch-template) and
+[asr_project_template](https://github.com/WrathOfGrapes/asr_project_template).
+
+The work builds on three papers:
+
+- X. Wu, R. He, Z. Sun, T. Tan. *A Light CNN for Deep Face Representation with Noisy Labels*,
+  [arXiv:1511.02683](https://arxiv.org/abs/1511.02683) — the architecture and the Max-Feature-Map
+  activation.
+- G. Lavrentyeva, S. Novoselov, T. Andzhukaev, M. Volkova, A. Gorlanov, A. Kozlov. *STC
+  Antispoofing Systems for the ASVspoof2019 Challenge*,
+  [arXiv:1904.05576](https://arxiv.org/abs/1904.05576) — the layer configuration used here.
+- X. Wang, J. Yamagishi. *A Comparative Study on Recent Neural Spoofing Countermeasures for
+  Synthetic Speech Detection*, [arXiv:2103.11326](https://arxiv.org/abs/2103.11326) — the data
+  preparation and the training recipe.
 
 ## License
+
+The template is distributed under the MIT license, and its copyright notice is kept unchanged in
+[LICENSE](/LICENSE).
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE)
