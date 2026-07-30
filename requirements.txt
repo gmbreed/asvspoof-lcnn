@@ -1,14 +1,20 @@
+# core
 torch==2.2.0
+torchaudio==2.2.0          # FLAC reading + LFCC front-end
 torchvision==0.17.0
-torchmetrics
+torchmetrics               # instantiated by Hydra from src/configs/metrics
+soundfile                  # FLAC decoding backend for torchaudio
 numpy==1.26.4
-tqdm
-matplotlib
-pandas
+hydra-core                 # configuration (pulls in omegaconf)
+
+# logging and reporting
 wandb
 comet_ml
-hydra-core
+pandas
+matplotlib
+tqdm
 
+# development
 black
 isort
 pre-commit
