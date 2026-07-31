@@ -22,16 +22,12 @@
 
 This repository contains a **countermeasure (CM) system for voice anti-spoofing**: given a
 recording, the model decides whether it is genuine human speech (*bonafide*) or speech produced by
-a text-to-speech or voice conversion system (*spoof*).
-
-The model is trained and evaluated on the Logical Access (LA) part of the
-[ASVspoof 2019 dataset](https://datashare.ed.ac.uk/handle/10283/3336)
-([Kaggle Link](https://www.kaggle.com/datasets/awsaf49/asvpoof-2019-dataset)). The main difficulty
-of this dataset lies in how it is split: the training and development parts are built from one set
-of spoofing algorithms, while the evaluation part uses a different and larger set. This is
-deliberate — the goal is to test whether a model still works on attacks it has never encountered
-during training. As a consequence, a very low EER on the development part says little about the
-evaluation part, and the gap between the two is typically large.
+a text-to-speech or voice conversion system (*spoof*). It is trained and evaluated on the Logical
+Access (LA) part of the [ASVspoof 2019 dataset](https://datashare.ed.ac.uk/handle/10283/3336)
+([Kaggle Link](https://www.kaggle.com/datasets/awsaf49/asvpoof-2019-dataset)), where the training
+and development parts are built from one set of spoofing algorithms and the evaluation part from a
+different and larger one. The task is therefore to generalise to attacks that were not seen during
+training.
 
 The model is a **Light CNN (LCNN)** with Max-Feature-Map activations. Its architecture follows
 [Wu et al. (2015)](https://arxiv.org/abs/1511.02683), with the exact layer configuration taken from
@@ -54,25 +50,16 @@ supplied with the assignment.
 | Lavrentyeva et al. (2019), `LFCC-LCNN`   | LFCC      | A-Softmax                                                      | 5.06        |
 | Wang & Yamagishi (2021), `LCNN-trim-pad` | LFCC      | sigmoid (= cross-entropy), 6 seeds                             | 2.54 – 3.47 |
 
-The last row is the closest published comparison: `LCNN-trim-pad` is the same architecture with the
-same front-end and the same fixed input of 750 frames, and the recipe used here follows it down to
-the optimiser and the learning-rate schedule. All four criteria in that paper are trained with
-cross-entropy and differ only in the output activation, and for two classes the softmax reduces to
-a sigmoid, so their `sigmoid` column is the configuration used here.
+The last row is the closest published comparison: the same architecture with the same front-end,
+and the recipe here follows it. All four criteria in that paper are trained with cross-entropy and
+differ only in the output activation, and for two classes the softmax reduces to a sigmoid, so
+their `sigmoid` column is the configuration used here. The result reported here is behind it. Over
+their whole grid the same architecture ranges from 2.31 % to 7.06 %, being sensitive to
+initialisation; only one seed was trained here.
 
-The result reported here is behind it, and the training objective is not what separates the two.
-Four differences remain: the first cepstral coefficient is not replaced with log spectral energy,
-the batch size is 32 rather than 64, the classes are weighted to offset the imbalance between
-bonafide and spoof trials, and an epoch here is 500 steps rather than a full pass over the training
-data, which makes the learning rate decay about 1.6 times faster per sample seen. Only one seed was
-trained, while the sensitivity of these models to initialisation is the main finding of that paper:
-over their whole grid the same architecture ranges from 2.31 % to 7.06 %. Their best result, 1.92 %,
-uses LSTM aggregation and goes beyond the plain LCNN.
-
-At the end of training the model reaches 0.59 % EER on the development partition, against the
-6.07 % above. That distance is the difference between seen and unseen attacks described earlier,
-not a sign of a broken pipeline: the paper of Lavrentyeva et al. reports the same pattern, with
-0.157 % on development and 5.06 % on evaluation.
+At the end of training the model reaches 0.59 % EER on the development partition against the
+6.07 % above — the difference between seen and unseen attacks described earlier. Lavrentyeva et al.
+report the same pattern, 0.157 % against 5.06 %.
 
 Training took about 1 hour 45 minutes on a single Kaggle GPU — 50 epochs of 500 steps. Scoring
 every saved checkpoint on the evaluation partition afterwards brought the whole session to roughly
@@ -185,53 +172,35 @@ reproduces it, up to the nondeterminism of GPU training.
 Every recording is turned into 20 linear-frequency cepstral coefficients, computed from a bank of
 20 linear triangular filters over a 512-point FFT with a 20 ms window and a 10 ms hop, and joined
 with their first and second differences, which gives 60 numbers per frame
-(`src/transforms/lfcc.py`). This is the recipe of Wang & Yamagishi, with one deviation: they
-replace the first coefficient with the log spectral energy, which is not done here.
-
-The choice of LFCC over a spectrogram is worth a note, because the two papers disagree.
-Lavrentyeva et al. report a slightly better result for their FFT system than for their LFCC one,
-4.53 % against 5.06 % EER, whereas Wang & Yamagishi find LFCC the stronger front-end in eleven of
-the twelve combinations of architecture and criterion they report — for `LCNN-trim-pad` with
-P2SGrad, 2.31 % to 3.11 % against 2.94 % to 4.74 % for the spectrogram. This work follows the
-second paper, whose recipe it adopts as a whole.
+(`src/transforms/lfcc.py`). This follows Wang & Yamagishi, except that they replace the first
+coefficient with the log spectral energy.
 
 ### Fixed-length input
 
-The network takes a fixed-size input, so every recording is cropped or zero-padded to 120 000
-samples: 7.5 seconds at 16 kHz, or 750 frames at a 10 ms hop. Wang & Yamagishi report that 750
-frames already cover 98 % of the database, so almost nothing is discarded. During training the crop
-window is drawn at random, which acts as a mild augmentation; at evaluation the first window is
-always taken, so a recording always receives the same score. Short recordings are padded with zeros
-rather than by repeating frames, which is what the reference recipe does as well: repetition would
-introduce seams and an artificial periodicity, exactly the kind of artefact an anti-spoofing model
-is happy to latch onto.
+Every recording is cropped or zero-padded to 120 000 samples: 7.5 seconds at 16 kHz, or 750 frames
+at a 10 ms hop, which the same paper reports covers 98 % of the database. The crop window is drawn
+at random during training and fixed to the first window at evaluation, so a recording always
+receives the same score. Short recordings are zero-padded, as in the reference recipe.
 
 ### Architecture
 
-The model is a Light CNN in the layer configuration of Table 1 of Lavrentyeva et al.: nine
-convolutions, each followed by a Max-Feature-Map activation, with four max-pooling layers and batch
-normalisation in between, then a fully connected layer with another Max-Feature-Map, dropout, a
-final batch normalisation and the classifier (`src/model/lcnn.py`). The dropout sits before that
-last batch normalisation and is set to 0.75, the value the same paper reports for the same purpose.
-
-Max-Feature-Map is what makes the network light. It splits the channels in half and keeps the
-element-wise maximum of the two halves, so each activation halves the channel count instead of
-merely zeroing part of it the way a ReLU does. The model ends up with 865 058 parameters, which
-agrees with the "more than 860k" Wang & Yamagishi report for the same architecture.
+A Light CNN in the layer configuration of Table 1 of Lavrentyeva et al.: nine convolutions, each
+followed by a Max-Feature-Map activation, with four max-pooling layers and batch normalisation in
+between, then a fully connected layer with another Max-Feature-Map, dropout of 0.75, a final batch
+normalisation and the classifier (`src/model/lcnn.py`). Max-Feature-Map takes the element-wise
+maximum of two halves of the channel axis, halving the channel count at every activation. The model
+has 865 058 parameters.
 
 ### Training
 
-The objective is cross-entropy with class weights of 1 and 9, offsetting the roughly one-to-nine
-ratio of bonafide to spoofed recordings in the training partition. A-Softmax is implemented as well
-(`src/loss/a_softmax.py`) and can be selected through the `asvspoof_asoftmax` config.
+Cross-entropy with class weights of 1 and 9, offsetting the roughly one-to-nine ratio of bonafide
+to spoofed recordings. A-Softmax is implemented as well (`src/loss/a_softmax.py`) and is selectable
+through the `asvspoof_asoftmax` config.
 
-Optimisation follows the reference recipe: AdamW with a learning rate of 3e-4 and no weight decay,
-which makes it plain Adam, the optimiser Wang & Yamagishi use. The learning rate is halved every
-5 000 steps, so by the end of training it is about sixteen times smaller than at the start.
-Training runs for 50 epochs of 500 steps, 25 000 updates in total, with a batch size of 32.
-Features are not normalised in any way, again following the reference recipe. The EER is not a
-per-batch quantity: the scores of every recording in a partition are collected first, and the
-threshold is swept over all of them together (`src/metrics/eer_metric.py`).
+AdamW with a learning rate of 3e-4 and no weight decay, which makes it plain Adam; the learning
+rate is halved every 5 000 steps. Training runs for 50 epochs of 500 steps with a batch size of 32.
+Features are not normalised, following the same recipe. The EER is computed over all the scores of
+a partition at once rather than per batch (`src/metrics/eer_metric.py`).
 
 ## Repository Structure
 
